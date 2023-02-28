@@ -1,0 +1,129 @@
+clear all; close all; clc
+
+%% 声明常数
+c = 3e8; % 光速
+eps_0 = 8.85e-12; % 真空中介电常数
+mu_0 = pi*4e-7; % 真空磁导率
+
+%% 声明天线参数
+l1 = 0.375; % 反射器长度
+l2 = 0.26; % 偶极子长度
+l3 = 0.2; % 引向器长度
+d = 0.55; % 元件间距离
+N = 3; % 天线阵列数
+
+%% 定义积分步长
+delta = 0.005;
+dx = delta;
+dy = delta;
+dz = delta;
+
+%% 定义积分范围
+x = [-2*d:dx:2*d];
+y = [-2*d:dy:2*d];
+z = [-2*d:dz:2*d];
+[X, Y, Z] = meshgrid(x, y, z);
+
+%% 计算矩阵
+M = zeros(3,3);
+for i = 1:3
+    for j = 1:3
+        if i == 1
+            if j == 1
+                M(i,j) = l2*(2*l2^2/3 + l3^2)/12;
+            elseif j == 2 || j == 3
+                M(i,j) = l2^2/2;
+            end
+        elseif i == 2
+            if j == 1 || j == 3
+                M(i,j) = -l2^2/2;
+            elseif j == 2
+                M(i,j) = l2*(2*l2^2/3 + l3^2)/12;
+            end
+        elseif i == 3
+            if j == 1
+                M(i,j) = l3*l2/4;
+            elseif j == 2
+                M(i,j) = -l3*l2/4;
+            elseif j == 3
+                M(i,j) = l3^3/3;
+            end
+        end
+    end
+end
+
+%% 计算电流分布
+J = zeros(size(X));
+for i = 1:size(X,1)
+    for j = 1:size(X,2)
+        for k = 1:size(X,3)
+            r = [X(i,j,k); Y(i,j,k); Z(i,j,k)];
+            if norm(r) <= l2/2
+                J(i,j,k) = 1;
+            end
+        end
+    end
+end
+
+%% 计算辐射场
+E = zeros(size(X));
+for i = 1:size(X,1)
+    for j = 1:size(X,2)
+        for k = 1:size(X,3)
+            r = [X(i,j,k); Y(i,j,k); Z(i,j,k)];
+            if norm(r) > l2/2 && norm(r) <= l1 + l3/2
+            r1 = [-d; 0; 0];
+            r2 = [d; 0; 0];
+            J1 = [1; 0; 0];
+            J2 = [1; 0; 0];
+            J3 = [0; 0; 0];
+            J = [J1; J2; J3];
+            r12 = r2 - r1;
+            r13 = r - r1;
+            r23 = r - r2;
+            R1 = norm(r13);
+            R2 = norm(r23);
+            R3 = norm(r12);
+            G1 = exp(-1j*k*R1)/(4*pi*R1);
+            G2 = exp(-1j*k*R2)/(4*pi*R2);
+            G3 = exp(-1j*k*R3)/(4*pi*R3);
+            G = [G1; G2; G3];
+            E(i,j,k) = k^2/4/pi*real(transpose(J)*G*M*transpose(G)*transpose(J));
+            elseif norm(r) > l1 + l3/2
+            r1 = [-d; 0; 0];
+            r2 = [d; 0; 0];
+            r3 = [0; 0; 0];
+            J1 = [1; 0; 0];
+            J2 = [1; 0; 0];
+            J3 = [0; 0; 0];
+            J = [J1; J2; J3];
+            r12 = r2 - r1;
+            r13 = r - r1;
+            r23 = r - r2;
+            R1 = norm(r13);
+            R2 = norm(r23);
+            R3 = norm(r);
+            G1 = exp(-1j*k*R1)/(4*pi*R1);
+            G2 = exp(-1j*k*R2)/(4*pi*R2);
+            G3 = exp(-1j*k*R3)/(4*pi*R3);
+            G = [G1; G2; G3];
+            E(i,j,k) = k^2/4/pi*real(transpose(J)*G*M*transpose(G)*transpose(J));
+        end
+    end
+end
+end
+
+%% 绘制辐射图
+E_norm = abs(E)/max(max(max(abs(E))));
+for i = 1:N
+figure
+for j = 1:3
+subplot(1,3,j)
+imagesc(squeeze(E_norm(:,:,i*2-2,j)))
+axis square
+axis off
+colormap('jet')
+colorbar
+title(['Element ',num2str(i),', Polarization ',num2str(j)])
+end
+end
